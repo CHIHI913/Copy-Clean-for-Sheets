@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Copy Clean for Sheets</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <h2>Copy Clean for Sheets</h2>
+    
+    <div class="format-section">
+      <label class="format-label">Output format:</label>
+      <div class="format-options">
+        <label class="radio-label">
+          <input type="radio" name="format" value="tsv" checked>
+          <span>TSV (Tab-separated)</span>
+        </label>
+        <label class="radio-label">
+          <input type="radio" name="format" value="csv">
+          <span>CSV (Comma-separated)</span>
+        </label>
+      </div>
+    </div>
+    
+    <button id="copyButton" class="copy-button">
+      <span class="button-icon">📋</span>
+      Copy Selected Cells
+    </button>
+    
+    <div id="status" class="status"></div>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>
