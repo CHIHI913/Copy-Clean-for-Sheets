@@ -1,6 +1,12 @@
 # Copy Clean for Sheets
 
-Google スプレッドシートから選択したセルをプレーンテキストとしてコピーするChrome拡張機能です。
+<div align="center">
+  <img src="icons/icon128.png" alt="Copy Clean for Sheets Icon" width="128" height="128">
+  
+  **Google スプレッドシートから選択したセルをプレーンテキストとしてコピーするChrome拡張機能**
+</div>
+
+---
 
 ## 機能
 
@@ -38,3 +44,9 @@ Google スプレッドシートから選択したセルをプレーンテキス�
 - **エスケープ処理**: Google Sheetsによってエスケープされた引用符（""）を元の引用符（"）に復元
 
 これにより、プレーンテキストとして貼り付ける際に余計な引用符が含まれない、クリーンなデータを取得できます。
+
+---
+
+<div align="center">
+  Made for Google Sheets users
+</div>
