@@ -1,4 +1,5 @@
-// Popup script for Copy Clean for Sheets
+// Improved popup script for Copy Clean for Sheets
+// Better handling of multi-line cells
 
 document.addEventListener('DOMContentLoaded', function() {
   const copyButton = document.getElementById('copyButton');
@@ -8,7 +9,7 @@ document.addEventListener('DOMContentLoaded', function() {
   copyButton.addEventListener('click', async function() {
     try {
       copyButton.disabled = true;
-      showStatus('Copying...', 'info');
+      showStatus('Processing...', 'info');
       
       // Get the active tab
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -20,16 +21,13 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
       }
       
-      // Send message to content script to get selected cells
-      chrome.tabs.sendMessage(tab.id, { action: 'getSelectedCells' }, async function(response) {
-        if (chrome.runtime.lastError) {
-          showStatus('Error: Unable to access the page. Please refresh and try again.', 'error');
-          copyButton.disabled = false;
-          return;
-        }
+      // Read from clipboard
+      try {
+        const clipboardText = await navigator.clipboard.readText();
+        console.log('Read from clipboard:', clipboardText);
         
-        if (!response || !response.data) {
-          showStatus('No cells selected. Please select cells and try again.', 'error');
+        if (!clipboardText) {
+          showStatus('No data in clipboard. Please copy cells first (Ctrl+C)', 'error');
           copyButton.disabled = false;
           return;
         }
@@ -37,20 +35,21 @@ document.addEventListener('DOMContentLoaded', function() {
         // Get selected format
         const format = document.querySelector('input[name="format"]:checked').value;
         
-        // Convert data to text
-        const text = convertToText(response.data, format);
+        // Process the clipboard data
+        const cleanedText = processClipboardData(clipboardText, format);
+        console.log('Cleaned text:', cleanedText);
         
-        // Copy to clipboard
-        try {
-          await copyToClipboard(text);
-          showStatus('✓ Copied to clipboard!', 'success');
-        } catch (err) {
-          showStatus('Failed to copy to clipboard', 'error');
-          console.error('Clipboard error:', err);
-        }
+        // Write back to clipboard
+        await navigator.clipboard.writeText(cleanedText);
         
-        copyButton.disabled = false;
-      });
+        showStatus('✓ Cleaned data copied to clipboard!', 'success');
+        
+      } catch (err) {
+        console.error('Clipboard error:', err);
+        showStatus('Cannot access clipboard. Please copy cells first (Ctrl+C)', 'error');
+      }
+      
+      copyButton.disabled = false;
       
     } catch (error) {
       showStatus('An error occurred', 'error');
@@ -59,39 +58,94 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
   
-  // Convert cell data to text format
-  function convertToText(data, format) {
-    const separator = format === 'csv' ? ',' : '\t';
+  // Process clipboard data to remove quotes and format as requested
+  function processClipboardData(text, format) {
+    console.log('Processing clipboard data...');
+    console.log('Raw length:', text.length);
     
-    return data.map(row => {
-      return row.map(cell => {
-        // For CSV format, escape values containing comma, quotes, or newlines
-        if (format === 'csv' && (cell.includes(',') || cell.includes('"') || cell.includes('\n'))) {
-          // Escape quotes by doubling them
-          const escaped = cell.replace(/"/g, '""');
-          return `"${escaped}"`;
-        }
-        return cell;
-      }).join(separator);
-    }).join('\n');
+    // Special handling for complex multi-line cells
+    const result = processComplexCells(text);
+    
+    // Format output based on selected format
+    if (format === 'csv') {
+      // Convert TSV to CSV if needed
+      return result.split('\t').join(',');
+    }
+    
+    return result;
   }
   
-  // Copy text to clipboard using Chrome API
-  async function copyToClipboard(text) {
-    // Try using the Chrome clipboard API first
-    if (chrome.clipboard && chrome.clipboard.writeText) {
-      await chrome.clipboard.writeText(text);
-    } else {
-      // Fallback method using textarea
-      const textarea = document.createElement('textarea');
-      textarea.value = text;
-      textarea.style.position = 'fixed';
-      textarea.style.opacity = '0';
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textarea);
+  function processComplexCells(text) {
+    // This function handles the case where cells contain multi-line text
+    // Google Sheets formats it as: "line1\nline2\nline3"\t"another cell"
+    
+    const cells = [];
+    let currentCell = '';
+    let inQuotes = false;
+    let i = 0;
+    
+    while (i < text.length) {
+      const char = text[i];
+      const nextChar = text[i + 1];
+      
+      if (!inQuotes && char === '"') {
+        // Starting a quoted cell
+        inQuotes = true;
+        i++;
+        continue;
+      }
+      
+      if (inQuotes && char === '"' && nextChar === '"') {
+        // Escaped quote within cell
+        currentCell += '"';
+        i += 2;
+        continue;
+      }
+      
+      if (inQuotes && char === '"' && (nextChar === '\t' || nextChar === '\n' || i === text.length - 1)) {
+        // End of quoted cell
+        inQuotes = false;
+        cells.push(currentCell);
+        currentCell = '';
+        i++;
+        
+        // Skip the delimiter if it exists
+        if (i < text.length && (text[i] === '\t' || text[i] === '\n')) {
+          if (text[i] === '\n') {
+            // End of row, add newline to result
+            cells.push('\n');
+          } else {
+            // Tab separator between cells
+            cells.push('\t');
+          }
+          i++;
+        }
+        continue;
+      }
+      
+      if (!inQuotes && (char === '\t' || char === '\n')) {
+        // Unquoted cell delimiter
+        if (currentCell) {
+          cells.push(currentCell);
+          currentCell = '';
+        }
+        cells.push(char);
+        i++;
+        continue;
+      }
+      
+      // Regular character
+      currentCell += char;
+      i++;
     }
+    
+    // Add any remaining cell
+    if (currentCell) {
+      cells.push(currentCell);
+    }
+    
+    // Join the cells back together
+    return cells.join('');
   }
   
   // Show status message
@@ -120,4 +174,19 @@ document.addEventListener('DOMContentLoaded', function() {
       chrome.storage.local.set({ format: this.value });
     });
   });
+  
+  // Update instructions
+  const container = document.querySelector('.container');
+  const instructions = document.createElement('div');
+  instructions.className = 'instructions';
+  instructions.innerHTML = `
+    <h3>How to use:</h3>
+    <ol>
+      <li>Select cells in Google Sheets</li>
+      <li>Copy with Ctrl+C (or Cmd+C)</li>
+      <li>Click "Copy Selected Cells"</li>
+    </ol>
+    <p style="font-size: 12px; color: #666;">The extension will clean the copied data and put it back in your clipboard.</p>
+  `;
+  container.insertBefore(instructions, container.querySelector('.format-section'));
 });

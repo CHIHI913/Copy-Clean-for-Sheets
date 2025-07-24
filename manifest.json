@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "description": "Copy cells from Google Sheets without quotes as plain text",
   "permissions": [
+    "clipboardRead",
     "clipboardWrite",
     "activeTab",
     "storage"
